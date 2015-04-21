@@ -1,0 +1,7 @@
+1. Luu y khi su dung ghi flash:
+	- Mot lan ghi xoa la phai het 1 page - 1kbyte doi voi dong` MD chip nay.
+	- Moi lan ghi vao khoang 1ms.
+	- Phai sua FW decription trong file *.icf
+	- Sua file MemoryMap.h
+	
+2. Hien gio code nay chua co check CRC.

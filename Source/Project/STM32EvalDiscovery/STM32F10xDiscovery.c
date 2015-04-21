@@ -1,0 +1,3 @@
+#include <stdio.h>
+#include "STM32F10xDiscovery.h"
+///////////////////////////////////////
