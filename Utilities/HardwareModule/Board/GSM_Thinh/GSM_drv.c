@@ -111,6 +111,9 @@ void GSM_AThandle(void) {
 				GSM_StaMachine_df_to_sms_read_v();
 			} else if (String_cmp(GSM_Rx.Data, "RDY\0")) {
 				GSM_SerialBusy_b = 0;
+			} else if (String_cmp(GSM_Rx.Data, "+CUSD")) {
+				GSM_account_checking_v();
+				GSM_reset();
 			}
 			break;
 		case GSM_STATE_SMS_READ:
@@ -328,7 +331,9 @@ void SMS_Delete(char mem_index) {
 }
 
 void SMS_Delete_all(void) {
-	GSM_PutROM("AT+CMGD=\"ALL\"\r");
+	//GSM_PutROM("AT+CMGD=\"ALL\"\r");
+	GSM_PutROM("AT+CMGD=1,4\r");
+	Command_return_Process();
 }
 void GSM_SMSphone(void) {
 	u8 i, j;
@@ -422,6 +427,32 @@ char* GSM_STATE_CALL_getdata(void) {
 		return (Call_Rx.phone_nums);
 	else
 		return (0);
+}
+void GSM_account_checking_v(void){
+	unsigned char t_index_ub=0;
+	unsigned char t_char_ub = 0;
+	unsigned char t_start_char_index_ub;
+	while (t_char_ub!='"'){
+		t_char_ub = GSM_Rx.Data[t_index_ub++];
+		if(t_char_ub == '\r') return;
+	}
+	t_start_char_index_ub = t_index_ub;
+
+	t_char_ub = GSM_Rx.Data[t_index_ub];
+	while (t_char_ub!='"'){
+		t_char_ub = GSM_Rx.Data[++t_index_ub];
+		if(t_char_ub == '\r') return;
+	}
+	account_checking_st.lenght_ub = t_index_ub - t_start_char_index_ub;
+	Str_N_copy((char *)&GSM_Rx.Data[t_start_char_index_ub], (char *)account_checking_st.account_checking_res_sb, account_checking_st.lenght_ub);
+	account_checking_st.rx_indication_ub = 1;
+}
+unsigned char GSM_account_checking_trigger_v(void){
+	if ((GSM_SpecificState == GSM_STATE_DEFAULT)&&(GSM_SerialBusy_b == 0)){
+		GSM_PutROM("ATD*101#;\r\n");
+		return 1;
+	}
+	return 0;
 }
 //-------------------------------------------------------------------------------------------
 void GSM_StaMachine_df_to_sms_send_v(void){

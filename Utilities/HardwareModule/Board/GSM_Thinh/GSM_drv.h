@@ -71,6 +71,13 @@ typedef struct
     unsigned char response_er_indicate;
 }Msg_send;
 
+typedef struct
+{
+	char account_checking_res_sb[512];
+	unsigned char lenght_ub;
+	unsigned char rx_indication_ub;
+}Account_checking_dfst;
+
 void GSM_Init_v(void);
 void GSM_InitSIM(void);
 void GSM_MCU_Drv_Init(void);
@@ -100,6 +107,8 @@ void Msg_send_reset(void);
 void SMS_data_reset(void);
 char* SMS_msg_get(char data);
 char* GSM_STATE_CALL_getdata(void);
+void GSM_account_checking_v(void);
+unsigned char GSM_account_checking_trigger_v(void);
 
 void GSM_StaMachine_df_to_sms_send_v(void);
 void GSM_StaMachine_sms_send_to_df_v(void);
@@ -112,9 +121,11 @@ void GSM_reset(void);
 #ifdef GSM_DRV
 Call_income Call_Rx;
 SMS_Rx SMS_Received;
+Account_checking_dfst account_checking_st;
 #else
 extern Call_income Call_Rx;
 extern SMS_Rx SMS_Received;
+extern Account_checking_dfst account_checking_st;
 #endif
 
 #endif

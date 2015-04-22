@@ -14,9 +14,17 @@
 #include "../../../MemoryMap.h"
 
 unsigned char GSM_mater2_phone_ub[1024];
-const char GSM_master_defaut_phone_ub[] = "+841283573315";
-//const char GSM_master_defaut_phone_ub[] = "+84906558678";
+//const char GSM_master_defaut_phone_ub[] = "+841283573315";
+const char GSM_master_defaut_phone_ub[] = "+84906558678";
 
+
+#define RELAY_SMS_OFFSET	6
+#define RELAY_COM_OFFSET	2
+#define GSM_WAITING_THRO	10000
+unsigned char l_set_phone_flag = 0, l_account_checking_trigger = 0;
+signed long l_delay_time_set_phone = 0;
+signed long l_gsm_busy_counter = 0;
+unsigned char gsm_appl_request_ub[21];
 
 void GSM_app_init(void){
 	  GSM_Init_v();
@@ -26,6 +34,52 @@ void GSM_app_main(void){
 	GSM_AThandle();
 	SMS_Get_proc();
 	GSM_STATE_CALL_proc();
+
+    /* There is issue when handle GSM, it can't response after receive immediately, hence
+     * the timer is set to delay 3s before sending response
+     * */
+    if (l_set_phone_flag){
+      if ((T1Us_Tick1Ms- l_delay_time_set_phone)>3000){
+        SMS_Sending((char *)GSM_master_defaut_phone_ub, "setting phone number is done");
+		GSM_WritePhoneN();
+        l_set_phone_flag = 0;
+      }
+    }
+
+    /*
+     * Checking busy flag
+     * 	- Due to there is a bug in GSM driver, this code to make sure the GSM is always available
+     * 	- If the busy gsm flag is set during 5 seconds, gsm will be reset
+     *
+     * */
+    if(GSM_WaitUART() && (GSM_STATE_DEFAULT== GSM_SpecificState )){
+    	l_gsm_busy_counter = T1Us_Tick1Ms;
+    } else {
+    	if ((T1Us_Tick1Ms - l_gsm_busy_counter)>GSM_WAITING_THRO){
+            Msg_send_reset();
+            Call_data_reset();
+            SMS_data_reset();
+            GSM_reset_default();
+            SMS_Delete_all();
+            GSM_app_init();
+    	}
+    }
+
+    /*
+     * account checking
+     *
+     * */
+    if (l_account_checking_trigger){
+    	if ((T1Us_Tick1Ms - l_delay_time_set_phone)>1000){
+    		if(GSM_account_checking_trigger_v()){
+    			l_account_checking_trigger = 0;
+    		}
+    	}
+    }
+    if (account_checking_st.rx_indication_ub){
+    	account_checking_st.rx_indication_ub = 0;
+    	GSM_Send_SMS_v((unsigned char *)account_checking_st.account_checking_res_sb);
+    }
 }
 /*
  *  - This method shall be polled at infinitive loop
@@ -46,13 +100,6 @@ void GSM_app_main(void){
  *
  *
  * */
-#define RELAY_SMS_OFFSET	6
-#define RELAY_COM_OFFSET	2
-#define GSM_WAITING_THRO	10000
-unsigned char l_set_phone_flag = 0;
-signed long l_delay_time_set_phone = 0;
-signed long l_gsm_busy_counter = 0;
-unsigned char gsm_appl_request_ub[21];
 
 extern signed long T1Us_Tick1Ms;
 void SMS_Get_proc(void) {
@@ -62,39 +109,6 @@ void SMS_Get_proc(void) {
 	unsigned char t_index_ub;
 	unsigned char t_set_relay_ub;
 	unsigned char *t_ms_char_pub;
-    
-    
-    /* There is issue when handle GSM, it can't response after receive immediately, hence
-     * the timer is set to delay 3s before sending response
-     * */
-    if (l_set_phone_flag){
-      if ((T1Us_Tick1Ms- l_delay_time_set_phone)>3000){
-        SMS_Sending((char *)GSM_master_defaut_phone_ub, "setting phone number is done");
-		GSM_WritePhoneN();
-        l_set_phone_flag = 0;
-        //GSM_app_init();
-        return;
-      }
-    }
-    
-    /*
-     * Checking busy flag
-     * 	- Due to there is a bug in GSM driver, this code to make sure the GSM is always available
-     * 	- If the busy gsm flag is set during 5 seconds, gsm will be reset
-     *
-     * */
-    if(GSM_WaitUART() && (GSM_STATE_DEFAULT== GSM_SpecificState )){
-    	l_gsm_busy_counter = T1Us_Tick1Ms;
-    } else {
-    	if ((T1Us_Tick1Ms - l_gsm_busy_counter)>GSM_WAITING_THRO){
-            //GSM_app_init();
-            Msg_send_reset();
-            Call_data_reset();
-            SMS_data_reset();
-            GSM_reset_default();
-            SMS_Delete_all();
-    	}
-    }
 
 	if (SMS_Received.SMS_finished) {
 		unsigned char t_Sim_Mem_idx_ub;
@@ -160,13 +174,16 @@ void SMS_Get_proc(void) {
                     l_delay_time_set_phone = T1Us_Tick1Ms;
 				} else if ((String_N_cmp(data_ptr, "cancel",6))||((String_N_cmp(data_ptr, "Cancel",6)))){
 					serial_com_send_v(3,"<c>");
+				} else if (String_N_cmp(data_ptr, "*101#",5)){
+					l_account_checking_trigger = 1;
+                    l_delay_time_set_phone = T1Us_Tick1Ms;
 				} else {
 
 				}
 			}
 		}
 		//SMS_Delete (t_Sim_Mem_idx_ub);
-            SMS_Delete_all();
+		SMS_Delete_all();
 		SMS_data_reset();
 	}
 }
@@ -176,13 +193,10 @@ void GSM_STATE_CALL_proc(void) {
 		if (GSM_WaitUART()) {
 			GSM_PutROM("ATH\r\0");
 			Command_return_Process();
-//			SMS_Sending(Master_phone, (char*) u8aGPRMC);
 			if ((String_cmp(Call_Rx.phone_nums+1, (char*)GSM_master_defaut_phone_ub+3))||(String_cmp(Call_Rx.phone_nums+1, (char *)GSM_mater2_phone_ub+3))) {
 				serial_com_send_v(3,"<s>");
             }
-//			} else {
-				Call_data_reset();
-//			}
+			Call_data_reset();
 		}
 	}
 }
