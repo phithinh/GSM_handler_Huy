@@ -40,10 +40,9 @@ void GSM_app_main(void){
  *
  *  	2. message = "status", should send a request "<s>" to relay board to get
  *  	current status
- *  	3. message = "n pppp xxxxxxxxxx", request to store the new master number,
+ *  	3. message = "phone +84xxxxxxxxxx", request to store the new master number,
  *  	"pppp" is pin number, "xxxxxxxxxx" is phone number
- *  	4. message = "p pppp nnnn", request to changed pin number
- *  	"pppp" is pin number, "nnnn" is new pin number
+ *  	4. message = "cancel", request to suppress relay control
  *
  *
  * */
@@ -106,7 +105,7 @@ void SMS_Get_proc(void) {
 			//validating phone number
 			if( (String_cmp(nums_ptr, (char*)GSM_master_defaut_phone_ub))||(String_cmp(nums_ptr, (char *)GSM_mater2_phone_ub))){
 
-				if ((String_cmp(data_ptr, "relay"))||(String_cmp(data_ptr, "Relay"))){
+				if ((String_N_cmp(data_ptr, "relay",5))||(String_N_cmp(data_ptr, "Relay",5))){
 					gsm_appl_request_ub[0] = '<';
 					gsm_appl_request_ub[1] = 'r';
 					gsm_appl_request_ub[2] = ' ';
@@ -141,13 +140,13 @@ void SMS_Get_proc(void) {
 					//send relay request
 					serial_com_send_v(20,(char*)gsm_appl_request_ub);
 
-				} else if ((String_cmp(data_ptr, "status"))||(String_cmp(data_ptr, "Status"))){
+				} else if ((String_N_cmp(data_ptr, "status",6))||(String_N_cmp(data_ptr, "Status",6))){
 					gsm_appl_request_ub[0] = '<';
 					gsm_appl_request_ub[1] = 's';
 					gsm_appl_request_ub[2] = '>';
 					//send relay request
 					serial_com_send_v(3,(char*)gsm_appl_request_ub);
-				} else if ((String_cmp(data_ptr, "phone"))||((String_cmp(data_ptr, "Phone")))){
+				} else if ((String_N_cmp(data_ptr, "phone",5))||((String_N_cmp(data_ptr, "Phone",5)))){
 					for(t_index_ub = 0; t_index_ub<14; t_index_ub++){
                         t_char_ub = *(data_ptr+6+t_index_ub);
                         if((t_char_ub != '+')&& (!((t_char_ub>='0')&&(t_char_ub<='9')))){
@@ -159,8 +158,8 @@ void SMS_Get_proc(void) {
 					}
                     l_set_phone_flag = 1; //to inform that it is done
                     l_delay_time_set_phone = T1Us_Tick1Ms;
-				} else if (String_cmp(data_ptr, "n")){
-
+				} else if ((String_N_cmp(data_ptr, "cancel",6))||((String_N_cmp(data_ptr, "Cancel",6)))){
+					serial_com_send_v(3,"<c>");
 				} else {
 
 				}
